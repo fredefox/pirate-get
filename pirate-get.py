@@ -10,6 +10,7 @@ from HTMLParser import HTMLParser
 import argparse
 from pprint import pprint
 
+
 # create a subclass and override the handler methods
 class MyHTMLParser(HTMLParser):
     title = ''
@@ -47,6 +48,14 @@ def main():
     parser.add_argument('-p', dest='pages', help="The number of pages to fetch (doesn't work with --local)", default=1)
     parser.add_argument('-0', dest='first', action='store_true', help="choose the top result", default=False)
     parser.add_argument('--color', dest='color', action='store_true', help="use colored output", default=False)
+
+    def local(args):
+        xml_str = ''
+        with open(args.database, 'r') as f:
+            xml_str += f.read()
+        htmlparser = MyHTMLParser(args.q)
+        htmlparser.feed(xml_str)
+        return htmlparser.results
 
     #todo: redo this with html parser instead of regex
     def remote(args, mirror):
@@ -133,7 +142,7 @@ def main():
     if args.database:
         mags = local(args)
     else:
-        mirrors = ["http://thepiratebay.se/"]
+        mirrors = ["http://proxybay.eu/"]
         try:
             res = requests.get("http://proxybay.info/list.txt").text
             mirrors += res.split("\n")[3:]
@@ -150,64 +159,70 @@ def main():
             except Exception, e:
                 print("Could not contact " + mirror, color="WARN")
 
-    if mags and len(mags) > 0:
-        # enhanced print output with column titles
-        print("%5s %6s %6s %-5s %-11s %-11s  %s" \
-            % ( "LINK", "SEED", "LEECH", "RATIO", "SIZE", "UPLOAD", "NAME"),
-            color="header")
-        cur_color = "zebra_0"
-        for i in range(len(mags)):
-            magnet = mags[i]
-            no_seeders = int(magnet[1])
-            no_leechers = int(magnet[2])
-            name = re.search("dn=([^\&]*)", magnet[0])
+    if not mags or len(mags) == 0:
+        print("No results");
+        return
+    # enhanced print output with column titles
 
-            # compute the S/L ratio (Higher is better)
-            try:
-                ratio = no_seeders/no_leechers
-            except ZeroDivisionError:
-                ratio = -1
+    print("%5s %6s %6s %-5s %-11s %-11s  %s" \
+        % ( "LINK", "SEED", "LEECH", "RATIO", "SIZE", "UPLOAD", "NAME"),
+        color="header")
+    cur_color = "zebra_0"
+    for m in range(len(mags)):
+        magnet = mags[m]
+        no_seeders = int(magnet[1])
+        no_leechers = int(magnet[2])
+        name = re.search("dn=([^\&]*)", magnet[0])
 
-            # Alternate between colors
-            cur_color = "zebra_0" if (cur_color == "zebra_1") else "zebra_1"
+        # compute the S/L ratio (Higher is better)
+        try:
+            ratio = no_seeders/no_leechers
+        except ZeroDivisionError:
+            ratio = -1
 
-            torrent_name = urllib.unquote(name.group(1).encode('ascii')) \
-                .decode('utf-8').replace("+", " ")
-            # enhanced print output with justified columns
-            print ("%5d %6d %6d %5.1f %-11s %-11s  %s" % (
-                i, no_seeders, no_leechers, ratio ,sizes[i],
-                uploaded[i], torrent_name), color=cur_color)
+        # Alternate between colors
+        cur_color = "zebra_0" if (cur_color == "zebra_1") else "zebra_1"
 
-        if args.first:
-            print("Choosing first result");
-            choice = 0
+        torrent_name = urllib.unquote(name.group(1).encode('ascii')) \
+            .decode('utf-8').replace("+", " ")
+        # enhanced print output with justified columns
+        print ("%5d %6d %6d %5.1f %-11s %-11s  %s" % (
+            m, no_seeders, no_leechers, ratio ,sizes[m],
+            uploaded[m], torrent_name), color=cur_color)
 
-        else:
-            try:
-                l = raw_input("Select a link: ")
-            except KeyboardInterrupt :
-                print("\nCancelled.")
-                exit()
+    if args.first:
+        print("Choosing first result")
+        choice = (0)
 
-            try:
-                choice = int(l)
-            except Exception:
-                choice = None
-
-        if not choice == None:
-            url = mags[choice][0]
-            print
-            print("url:")
-            print(url)
-            if args.transmission: 
-                os.system("""transmission-remote --add "%s" """ % (url))
-                os.system("transmission-remote -l")
-            else:
-                webbrowser.open(url)
-        else:
-            print("Cancelled.")
     else:
-        print("no results")
+        try:
+            l = raw_input("Select a link: ")
+        except KeyboardInterrupt :
+            print("\nCancelled.")
+            exit()
+
+    try:
+        # Very permissive handling
+        # Substitute multiple consecutive spaces for single comma
+        l = re.sub(" +", ",", l)
+        # Substitute multiple consecutive commas for single comma
+        l = re.sub(",+", ",", l)
+        # Remove anything that isn't an integer or comma.
+        l = re.sub("[^0-9,]", "", l)
+        # Turn into list
+        choices = l.split(",")
+    except Exception:
+        choices = ()
+
+    for choice in choices:
+        choice = int(choice)
+        url = mags[choice][0]
+        print(url)
+        if args.transmission: 
+            os.system("""transmission-remote --add "%s" """ % (url))
+            os.system("transmission-remote -l")
+        else:
+            webbrowser.open(url)
 
 if __name__ == "__main__":
     main()
