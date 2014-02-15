@@ -118,52 +118,59 @@ def main():
             except Exception, e:
                 print("Could not contact " + mirror)
 
-    if mags and len(mags) > 0:
-        # enhanced print output with column titles
-        print "\n%-5s %-6s %-6s %-5s %-11s %-11s  %s" % ( "LINK", "SEED", "LEECH", "RATIO", "SIZE", "UPLOAD", "NAME")
-        for m in range(len(mags)):
-            magnet = mags[m]
-            name = re.search("dn=([^\&]*)", magnet[0])
-
-            # compute the S/L ratio (Higher is better)
-            try:
-                ratio = float(magnet[1])/float(magnet[2])
-            except ZeroDivisionError:
-                ratio = 0
-
-            # enhanced print output with justified columns
-            print "%-5s %-6s %-6s %5.1f %-11s %-11s  %s" % (m, magnet[1], magnet[2], ratio ,sizes[m], uploaded[m],urllib.unquote(name.group(1).encode('ascii')).decode('utf-8').replace("+", " ") )
-
-        if args.first:
-            print "Choosing first result";
-            choice = 0
-
-        else:
-            try:
-                l = raw_input("Select a link: ")
-            except KeyboardInterrupt :
-                print "\nCancelled."
-                exit()
-
-            try:
-                choice = int(l)
-            except Exception:
-                choice = None
-
-        if not choice == None:
-            url = mags[choice][0]
-            print
-            print "url:"
-            print url
-            if args.transmission: 
-                os.system("""transmission-remote --add "%s" """ % (url))
-                os.system("transmission-remote -l")
-            else:
-                webbrowser.open(url)
-        else:
-            print "Cancelled."
-    else:
+    if not mags or len(mags) == 0:
         print "no results"
+        return
+    # enhanced print output with column titles
+    print "\n%-5s %-6s %-6s %-5s %-11s %-11s  %s" % ( "LINK", "SEED", "LEECH", "RATIO", "SIZE", "UPLOAD", "NAME")
+    for m in range(len(mags)):
+        magnet = mags[m]
+        name = re.search("dn=([^\&]*)", magnet[0])
+
+        # compute the S/L ratio (Higher is better)
+        try:
+            ratio = float(magnet[1])/float(magnet[2])
+        except ZeroDivisionError:
+            ratio = 0
+
+        # enhanced print output with justified columns
+        print "%-5s %-6s %-6s %5.1f %-11s %-11s  %s" % (m, magnet[1], magnet[2], ratio ,sizes[m], uploaded[m],urllib.unquote(name.group(1).encode('ascii')).decode('utf-8').replace("+", " ") )
+
+    if args.first:
+        print "Choosing first result";
+        choice = 0
+
+    else:
+        try:
+            l = raw_input("Select a link: ")
+        except KeyboardInterrupt :
+            print "\nCancelled."
+            exit()
+
+        try:
+            # Very permissive handling
+            # Substitute multiple consecutive spaces for single comma
+            l = re.sub(" +", ",", l)
+            # Substitute multiple consecutive commas for single comma
+            l = re.sub(",+", ",", l)
+            # Remove anything that isn't an integer or comma.
+            l = re.sub("[^0-9,]", "", l)
+            # Turn into list
+            choices = l.split(",")
+        except Exception:
+            choices = ()
+
+    for choice in choices:
+        choice = int(choice)
+        url = mags[choice][0]
+        print
+        print "url:"
+        print url
+        if args.transmission: 
+            os.system("""transmission-remote --add "%s" """ % (url))
+            os.system("transmission-remote -l")
+        else:
+            webbrowser.open(url)
 
 if __name__ == "__main__":
     main()
