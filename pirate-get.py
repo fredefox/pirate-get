@@ -6,6 +6,7 @@ import urllib
 import requests
 import re
 import os
+from sys import stderr, stdout
 from HTMLParser import HTMLParser
 import argparse
 from pprint import pprint
@@ -94,7 +95,7 @@ def main():
                             res_l.append(curr)
                             curr = ['', 0, 0]
         except KeyboardInterrupt :
-            print("\nCancelled.")
+            print("\nCancelled.", file=stderr)
             exit()
 
         # return the sizes in a spearate list
@@ -147,7 +148,7 @@ def main():
             res = requests.get("http://proxybay.info/list.txt").text
             mirrors += res.split("\n")[3:]
         except:
-            print("Could not fetch additional mirrors", color="WARN")
+            print("Could not fetch additional mirrors", color="WARN", file=stderr)
         for mirror in mirrors:
             try:
                 print("Trying " + mirror)
@@ -157,7 +158,7 @@ def main():
                 mags, sizes, uploaded = remote(args, mirror)
                 break
             except Exception, e:
-                print("Could not contact " + mirror, color="WARN")
+                print("Could not contact " + mirror, color="WARN", file=stderr)
 
     if not mags or len(mags) == 0:
         print("No results");
