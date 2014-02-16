@@ -49,6 +49,7 @@ def main():
     parser.add_argument('-p', dest='pages', help="The number of pages to fetch (doesn't work with --local)", default=1)
     parser.add_argument('-0', dest='first', action='store_true', help="choose the top result", default=False)
     parser.add_argument('--color', dest='color', action='store_true', help="use colored output", default=False)
+    parser.add_argument('--verbosity', dest='verbosity', type=int, help="set verbosity", default=1)
 
     def local(args):
         xml_str = ''
@@ -103,7 +104,7 @@ def main():
 
     args = parser.parse_args()
 
-    def make_print():
+    class MyPrinter:
         if(args.color):
             import colorama
             colorama.init()
@@ -113,7 +114,7 @@ def main():
             "zebra_1": colorama.Style.DIM,
             "WARN": colorama.Fore.YELLOW,
             "ERROR": colorama.Fore.RED}
-            def n_print(*args, **kwargs):
+            def modify(self, *args, **kwargs):
                 """Print with colors"""
                 try:
                     c = color_dict[kwargs.pop("color")]
@@ -122,16 +123,39 @@ def main():
                     pass
                 except IndexError as e:
                     pass
-                return __builtin__.print(*args, **kwargs)
-        else:
-            def n_print(*args, **kwargs):
-                if("color" in kwargs):
-                    kwargs.pop('color')
-                return __builtin__.print(*args, **kwargs)
-        return n_print
+                return args
+        try:
+            modify_more=modify
+        except NameError:
+            pass
+        def modify(self, *args, **kwargs):
+            try:
+                args = modify_more(*args, **kwargs)
+            except AttributeError as e:
+                pass
+            try:
+                verbosity = kwargs.pop("verbosity")
+            except KeyError as e:
+                verbosity=1
+            if verbosity > args.verbosity:
+                return ()
 
-    print=make_print()
+            return args
 
+
+
+        def my_print(*args, **kwargs):
+            # This here is the extra overhead.
+            # The down-side of interpreted languages.
+            for option in ["color", "verbosity"]:
+                option in kwargs and kwargs.pop(option)
+            return __builtin__.print(*args, **kwargs)
+
+    printer=MyPrinter()
+    print=printer.my_print
+    print("hej")
+    printer.my_print("hej")
+    return
     def local(args):
         xml_str = ''
         with open(args.database, 'r') as f:
@@ -167,7 +191,7 @@ def main():
 
     print("%5s %6s %6s %-5s %-11s %-11s  %s" \
         % ( "LINK", "SEED", "LEECH", "RATIO", "SIZE", "UPLOAD", "NAME"),
-        color="header")
+        color="header", verbosity=2)
     cur_color = "zebra_0"
     for m in range(len(mags)):
         magnet = mags[m]
@@ -192,22 +216,20 @@ def main():
             uploaded[m], torrent_name), color=cur_color)
 
     if args.first:
-        print("Choosing first result")
+        print("Choosing first result", verbosity=3)
         choice = (0)
 
     else:
         try:
-            l = raw_input("Select a link: ")
+            l = raw_input("Select a link: ", verbosity=3)
         except KeyboardInterrupt :
             print("\nCancelled.")
             exit()
 
     try:
         # Very permissive handling
-        # Substitute multiple consecutive spaces for single comma
-        l = re.sub(" +", ",", l)
-        # Substitute multiple consecutive commas for single comma
-        l = re.sub(",+", ",", l)
+        # Substitute multiple consecutive spaces or commas for single comma
+        l = re.sub("[ ,]+", ",", l)
         # Remove anything that isn't an integer or comma.
         l = re.sub("[^0-9,]", "", l)
         # Turn into list
@@ -218,7 +240,7 @@ def main():
     for choice in choices:
         choice = int(choice)
         url = mags[choice][0]
-        print(url)
+        print(url, verbosity=2)
         if args.transmission: 
             os.system("""transmission-remote --add "%s" """ % (url))
             os.system("transmission-remote -l")
